@@ -6,16 +6,16 @@ if [ $# -gt 0 ]; then
 fi
 
 if [ ! -d ./model/$file ]; then
-    mkdir ./model/$file
-    mkdir ./log/$file
-    mkdir ./log/$file/train
-    mkdir ./log/$file/test
-    mkdir ./stats/$file
+    mkdir -p ./model/$file
+    mkdir -p ./log/$file
+    mkdir -p ./log/$file/train
+    mkdir -p ./log/$file/test
+    mkdir -p ./stats/$file
 fi
 
 #rm -r ./model/$file/*
-rm -r ./log/$file/train/*
-rm -r ./log/$file/test/*
+# rm -r ./log/$file/train/*
+# rm -r ./log/$file/test/*
 #rm -r ./stats/$file/*
 
 CUDA_VISIBLE_DEVICES=0 python3 bag_runner.py --name $file --epoch 10 \
