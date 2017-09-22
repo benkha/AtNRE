@@ -29,6 +29,15 @@ This repository is the source code for the [paper](https://people.eecs.berkeley.
     ```
     replacing `1506105808` with the timestamp of the current run.
 
+    If running TensorFlow on a remote server, you can use
+    ```
+    ssh -L 16006:127.0.0.1:6006 user@server
+    ```
+
+    and then run TensorBoard normally on the remote machine.
+
+    Navigating to `http://127.0.0.1:16006/` on your local machine will show the TensorBoard from the remote machine.
+
     ![TensorBoard](figures/tb.png)
 4. To run the model from a saved checkpoint, use the `--warmstart` option to `bug_runner.py`.
 
