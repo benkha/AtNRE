@@ -1,6 +1,8 @@
-import tensorflow as tf
 import numpy as np
+import tensorflow as tf
+
 import mycommon as mc
+
 
 class BAGRNN_Model:
     def __init__(self,

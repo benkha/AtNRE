@@ -1,9 +1,12 @@
-import tensorflow as tf
-import numpy as np
-import time
-import pickle
-import mycommon as mc
 import os
+import pickle
+import time
+
+import numpy as np
+import tensorflow as tf
+
+import mycommon as mc
+
 
 class MyLogger:
     def __init__(self, logdir, clear_file = False):

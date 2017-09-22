@@ -1,13 +1,15 @@
-import numpy as np
-import time
-from nyt_miml_loader import miml_loader as mimlLoader
-from bag_loader import loader as Loader
-from bag_model import BAGRNN_Model as Model
-from bag_trainer import BagTrainer as Trainer
-
 ####
 # arguments
 import argparse
+import time
+
+import numpy as np
+
+from bag_loader import loader as Loader
+from bag_model import BAGRNN_Model as Model
+from bag_trainer import BagTrainer as Trainer
+from nyt_miml_loader import miml_loader as mimlLoader
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--name', type=str, default='model', help='name of the model')
 parser.add_argument('--epoch', type=int, default=10, help='number of epochs in this run')

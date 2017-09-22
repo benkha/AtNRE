@@ -1,5 +1,4 @@
 import tensorflow as tf
-import numpy as np
 
 tiny = 1e-20
 
@@ -348,7 +347,7 @@ def myrnn_decoder(inputs, length, dim, embedding, n_word,
 # Python Util
 ###########################
 def clear_folder(folder):
-    import os, shutil
+    import os
     for the_file in os.listdir(folder):
         file_path = os.path.join(folder, the_file)
         try:
