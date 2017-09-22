@@ -3,7 +3,7 @@ import numpy as np
 import time
 import pickle
 import mycommon as mc
-
+import os
 
 class MyLogger:
     def __init__(self, logdir, clear_file = False):
@@ -288,7 +288,17 @@ class BagTrainer:
         global_batch_counter = 0
         global_ep_counter = 0
 
+        timestamp = str(int(time.time()))
+        print("Timestamp", timestamp)
+        tensor_board_dir = './tensorboard/' + timestamp + '/train'
+        tensor_board_test_dir = './tensorboard/' + timestamp + '/test'
+        if not os.path.exists(tensor_board_dir):
+            os.makedirs(tensor_board_dir)
+        if not os.path.exists(tensor_board_test_dir):
+            os.makedirs(tensor_board_test_dir)
+
         with tf.Session(config=config) as sess:
+
             try:
                 if restore_dir is None:
                     sess.run(tf.global_variables_initializer())
@@ -298,6 +308,8 @@ class BagTrainer:
                     with open(restore_dir+'-counter.pkl','rb') as f:
                         global_batch_counter, global_ep_counter = pickle.load(f)
 
+                tb_train_writer = tf.summary.FileWriter(tensor_board_dir, sess.graph)
+                tb_test_writer = tf.summary.FileWriter(tensor_board_test_dir, sess.graph)
                 # Run Training
 
                 accu_batch = 0
@@ -328,10 +340,12 @@ class BagTrainer:
                         accu_batch += 1
                         accu_loss += c_loss
                         self.train_writer.add_summary(summary, global_batch_counter)
+                        tb_train_writer.add_summary(summary, global_step=global_batch_counter)
                         if iter_n % test_gap == 0:
                             summary = sess.run(self.merged,
                                                feed_dict=self.feed_dict('test'))
                             self.test_writer.add_summary(summary, global_batch_counter)
+                            tb_test_writer.add_summary(summary, global_step=global_batch_counter)
 
                         if iter_n >= total_batches * cur_rate:
                             logger.print(' --> {x} / {y} finished! ratio = {r},   elapsed = {t}'.format(
