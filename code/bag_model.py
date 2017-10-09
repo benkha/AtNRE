@@ -24,7 +24,8 @@ class BAGRNN_Model:
                  sampled_sigmoid_loss = False,
                  max_dist_embed = None,
                  excl_na_loss = True,
-                 only_perturb_pos_rel = False):
+                 only_perturb_pos_rel = False,
+                 pos_adv = False):
         self.bag_num = bag_num # total number of bags
         self.enc_dim = enc_dim
         if rel_dim is None:
@@ -49,6 +50,7 @@ class BAGRNN_Model:
         self.use_pcnn = (cell_type == 'pcnn')  # None for RNN; other wise use PCNN with feature size <use_pcnn>
         self.excl_na_loss = excl_na_loss  # exclude NA in the loss function, only effective for sigmoid loss
         self.only_perturb_pos_rel = only_perturb_pos_rel
+        self.pos_adv = pos_adv
 
     def build(self, is_training,
               ent_dim = 3,
@@ -143,7 +145,7 @@ class BAGRNN_Model:
         use_pcnn = self.use_pcnn
         pcnn_feat_size = self.enc_dim
 
-        def discriminative_net(word_inputs, name = 'discriminative-net', reuse = False,
+        def discriminative_net(word_inputs, ent_inputs, name = 'discriminative-net', reuse = False,
                                  only_pos_rel_loss = False):
             with tf.variable_scope(name, reuse=reuse):
                 if only_pos_rel_loss:
@@ -246,7 +248,7 @@ class BAGRNN_Model:
                                 loss = tf.losses.sigmoid_cross_entropy(ph_Y, logits)
             return probs, loss
 
-        self.probs, self.raw_loss = discriminative_net(orig_inputs, reuse=False,
+        self.probs, self.raw_loss = discriminative_net(orig_inputs, ent_inputs, reuse=False,
                                                        only_pos_rel_loss=(self.adv_eps is not None) and (self.only_perturb_pos_rel) and (not use_softmax_loss))
         if self.adv_eps is None:
             self.loss = self.raw_loss
@@ -256,6 +258,8 @@ class BAGRNN_Model:
                 # normalize per sentence
                 self.perturb = perturb = self.adv_eps * tf.stop_gradient(
                     tf.nn.l2_normalize(raw_perturb * tf.expand_dims(mask, axis=-1), dim=[1, 2]))
+                print('====HOOO===')
+                print(self.perturb.get_shape())
             elif self.adv_type == 'batch':
                 # normalize the whole batch
                 self.perturb = perturb = self.adv_eps * tf.stop_gradient(
@@ -268,5 +272,27 @@ class BAGRNN_Model:
                     perturb_list.append(self.adv_eps * tf.nn.l2_normalize(curr_pt, dim=[0,1,2]))
                 self.perturb = perturb = tf.concat(perturb_list, axis=0)  # [batch, L, dim]
             self.perturb_inputs = perturb_inputs = orig_inputs + perturb
-            self.perturb_probs, self.loss = discriminative_net(perturb_inputs, reuse=True)  # optimize the loss with perturbed loss
+            self.perturb_pos_inputs = perturb_pos_inputs = ent_inputs
+            if self.pos_adv:
+                raw_perturb_pos = tf.gradients(self.raw_loss, ent_inputs)[0]  # [batch, L, dim]
+                if self.adv_type == 'sent':
+                    # normalize per sentence
+                    self.perturb_pos = perturb_pos = self.adv_eps * tf.stop_gradient(
+                        tf.nn.l2_normalize(raw_perturb_pos * tf.expand_dims(mask, axis=-1), dim=[1, 2]))
+                    print('====HEY===')
+                    print(self.perturb_pos.get_shape())
+                elif self.adv_type == 'batch':
+                    # normalize the whole batch
+                    self.perturb_pos = perturb_pos = self.adv_eps * tf.stop_gradient(
+                        tf.nn.l2_normalize(raw_perturb_pos * tf.expand_dims(mask, axis=-1), dim=[0,1,2]))
+                else:  # bag-level normalization
+                    raw_perturb_pos = tf.stop_gradient(raw_perturb * tf.expand_dims(mask, axis=-1))  # [batch, L, dim]
+                    perturb_list = []
+                    for i in range(bag_num):
+                        curr_pt = raw_perturb_pos[shapes[i]:shapes[i+1], :, :]  # [bag_size, L, dim]
+                        perturb_list.append(self.adv_eps * tf.nn.l2_normalize(curr_pt, dim=[0,1,2]))
+                    self.perturb_pos = perturb_pos = tf.concat(perturb_list, axis=0)  # [batch, L, dim]
+                self.perturb_pos_inputs = perturb_pos_inputs = ent_inputs + perturb_pos
+            self.perturb_probs, self.loss = discriminative_net(perturb_inputs, ent_inputs=perturb_pos_inputs, reuse=True)  # optimize the loss with perturbed loss
+
 

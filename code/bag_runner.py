@@ -68,6 +68,9 @@ parser.add_argument('--softmax_loss_size', type=int, default=0,
 parser.add_argument('--max_dist_embed', type=int,
                     help='if specified, use relative distance embedding; otherwise, use one-hot indicator for entities')
 parser.add_argument('--warmstart', type=str)
+parser.add_argument('--pos_adv', dest='pos_adv', action='store_true',
+                    help='When specified, dropout will not be performed on the embedding')
+parser.set_defaults(pos_adv=False)
 args = parser.parse_args()
 ###
 
@@ -123,7 +126,8 @@ model = Model(bag_num = args.bag_num,
               sampled_sigmoid_loss = (args.sampled_sigmoid_loss is not None),
               max_dist_embed = args.max_dist_embed,
               excl_na_loss = args.excl_na,
-              only_perturb_pos_rel = (not args.perturb_all))
+              only_perturb_pos_rel = (not args.perturb_all),
+              pos_adv = args.pos_adv)
 
 trainer = Trainer(model, loader,
                   lrate = args.lrate,

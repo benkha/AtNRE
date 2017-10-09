@@ -14,7 +14,7 @@ class MyLogger:
         if clear_file:
             mc.remove_file(self.fname)
 
-    def print_model_spec(self, model):
+    def print_model_spec(self, model, timestamp):
         with open(self.fname, 'a') as f:
             print('+++++++++++++ Model Specs +++++++++++', file=f)
             if model.use_full_softmax:
@@ -37,6 +37,7 @@ class MyLogger:
             else:
                 s = 'one-hot-pos'
             print('Entity-Pos-Embed: {}'.format(s), file=f)
+            print('Timestamp: {}'.format(timestamp), file=f)
             print('+++++++++++++++++++++++++++++++++++++', file=f)
 
     def print(self, str, to_screen = True):
@@ -262,7 +263,9 @@ class BagTrainer:
         self.logger = logger = MyLogger(stats_dir)
         logger.print("\n\n\n\n", False)
         logger.print(">>>>>>>>>>>>>>>>> New Start <<<<<<<<<<<<<<<<<<<<<", False)
-        logger.print_model_spec(self.model)
+        timestamp = str(int(time.time()))
+        logger.print("Timestamp", timestamp)
+        logger.print_model_spec(self.model, timestamp=timestamp)
 
         # build tensorboard monitoring variables
         tf.summary.scalar('miml-loss', self.model.raw_loss)
@@ -291,8 +294,7 @@ class BagTrainer:
         global_batch_counter = 0
         global_ep_counter = 0
 
-        timestamp = str(int(time.time()))
-        print("Timestamp", timestamp)
+
         tensor_board_dir = './tensorboard/' + timestamp + '/train'
         tensor_board_test_dir = './tensorboard/' + timestamp + '/test'
         if not os.path.exists(tensor_board_dir):
