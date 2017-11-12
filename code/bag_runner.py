@@ -39,6 +39,7 @@ parser.add_argument('--no-DS-data', dest='dsdata', action='store_false')
 parser.set_defaults(dsdata=True)
 # eps for adversarial training
 parser.add_argument('--adv_eps', type=float, help='when specified, adversarial training will be applied')
+parser.add_argument('--pos_adv_eps', type=float, help='when specified, adversarial training will be applied')
 parser.add_argument('--adv_type', choices=['batch', 'bag', 'sent'], default='sent',
                     help='Type of perturbation normalization: batch-level; bag-level; sent-level;')
 parser.add_argument('--adv-only-pos-rel', dest='perturb_all', action='store_false',
@@ -120,6 +121,7 @@ model = Model(bag_num = args.bag_num,
               dropout = args.dropout,
               cell_type = args.cell_type,
               adv_eps = args.adv_eps,
+              pos_adv_eps = args.pos_adv_eps,
               adv_type = args.adv_type,
               tune_embed = args.tune_embed,
               use_softmax_loss = args.softmax_loss_size if args.softmax_loss else None,

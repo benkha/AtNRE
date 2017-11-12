@@ -18,6 +18,7 @@ class BAGRNN_Model:
                  dropout = None,
                  cell_type = 'gru',
                  adv_eps = None,
+                 pos_adv_eps = None,
                  adv_type = 'sent',
                  tune_embed = False,
                  use_softmax_loss = None,
@@ -41,6 +42,7 @@ class BAGRNN_Model:
         self.dropout = dropout
         self.cell_type = cell_type
         self.adv_eps = adv_eps  # eps for adversarial training, if None, classical feedfwd net
+        self.pos_adv_eps = pos_adv_eps
         self.adv_type = adv_type  # type of adversarial perturbation: batch, bag, sent
         self.tune_embed = tune_embed
         self.use_softmax_loss = (use_softmax_loss is not None)  # whether to use softmax loss or sigmoid loss
@@ -258,8 +260,6 @@ class BAGRNN_Model:
                 # normalize per sentence
                 self.perturb = perturb = self.adv_eps * tf.stop_gradient(
                     tf.nn.l2_normalize(raw_perturb * tf.expand_dims(mask, axis=-1), dim=[1, 2]))
-                print('====HOOO===')
-                print(self.perturb.get_shape())
             elif self.adv_type == 'batch':
                 # normalize the whole batch
                 self.perturb = perturb = self.adv_eps * tf.stop_gradient(
@@ -277,20 +277,18 @@ class BAGRNN_Model:
                 raw_perturb_pos = tf.gradients(self.raw_loss, ent_inputs)[0]  # [batch, L, dim]
                 if self.adv_type == 'sent':
                     # normalize per sentence
-                    self.perturb_pos = perturb_pos = self.adv_eps * tf.stop_gradient(
+                    self.perturb_pos = perturb_pos = self.pos_adv_eps * tf.stop_gradient(
                         tf.nn.l2_normalize(raw_perturb_pos * tf.expand_dims(mask, axis=-1), dim=[1, 2]))
-                    print('====HEY===')
-                    print(self.perturb_pos.get_shape())
                 elif self.adv_type == 'batch':
                     # normalize the whole batch
-                    self.perturb_pos = perturb_pos = self.adv_eps * tf.stop_gradient(
+                    self.perturb_pos = perturb_pos = self.pos_adv_eps * tf.stop_gradient(
                         tf.nn.l2_normalize(raw_perturb_pos * tf.expand_dims(mask, axis=-1), dim=[0,1,2]))
                 else:  # bag-level normalization
                     raw_perturb_pos = tf.stop_gradient(raw_perturb * tf.expand_dims(mask, axis=-1))  # [batch, L, dim]
                     perturb_list = []
                     for i in range(bag_num):
                         curr_pt = raw_perturb_pos[shapes[i]:shapes[i+1], :, :]  # [bag_size, L, dim]
-                        perturb_list.append(self.adv_eps * tf.nn.l2_normalize(curr_pt, dim=[0,1,2]))
+                        perturb_list.append(self.pos_adv_eps * tf.nn.l2_normalize(curr_pt, dim=[0,1,2]))
                     self.perturb_pos = perturb_pos = tf.concat(perturb_list, axis=0)  # [batch, L, dim]
                 self.perturb_pos_inputs = perturb_pos_inputs = ent_inputs + perturb_pos
             self.perturb_probs, self.loss = discriminative_net(perturb_inputs, ent_inputs=perturb_pos_inputs, reuse=True)  # optimize the loss with perturbed loss
