@@ -71,6 +71,7 @@ parser.add_argument('--max_dist_embed', type=int,
 parser.add_argument('--warmstart', type=str)
 parser.add_argument('--pos_adv', dest='pos_adv', action='store_true',
                     help='When specified, dropout will not be performed on the embedding')
+parser.add_argument('--sentence_eps', type=float, help='when specified, sentence adversarial training will be applied')
 parser.set_defaults(pos_adv=False)
 args = parser.parse_args()
 ###
@@ -129,7 +130,8 @@ model = Model(bag_num = args.bag_num,
               max_dist_embed = args.max_dist_embed,
               excl_na_loss = args.excl_na,
               only_perturb_pos_rel = (not args.perturb_all),
-              pos_adv = args.pos_adv)
+              pos_adv = args.pos_adv,
+              sentence_eps=args.sentence_eps)
 
 trainer = Trainer(model, loader,
                   lrate = args.lrate,

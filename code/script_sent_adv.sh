@@ -36,8 +36,7 @@ CUDA_VISIBLE_DEVICES=0 python3 bag_runner.py --name $file --epoch 50 \
     --gpu_usage 0.9 \
     --dropout 0.5 \
     --adv_eps 0.01 \
-    --pos_adv_eps 0.0025 \
     --dataset nyt --cat_n 58 \
     --max_eval_rel 3000 \
-    --pos_adv
+    --sentence_eps 0.01
 #    --warmstart ./model/nyt_pcnn_pos_adv/nyt_pcnn_pos_adv_ep40

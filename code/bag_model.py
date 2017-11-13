@@ -26,7 +26,8 @@ class BAGRNN_Model:
                  max_dist_embed = None,
                  excl_na_loss = True,
                  only_perturb_pos_rel = False,
-                 pos_adv = False):
+                 pos_adv = False,
+                 sentence_eps=None):
         self.bag_num = bag_num # total number of bags
         self.enc_dim = enc_dim
         if rel_dim is None:
@@ -53,6 +54,7 @@ class BAGRNN_Model:
         self.excl_na_loss = excl_na_loss  # exclude NA in the loss function, only effective for sigmoid loss
         self.only_perturb_pos_rel = only_perturb_pos_rel
         self.pos_adv = pos_adv
+        self.sentence_eps = sentence_eps
 
     def build(self, is_training,
               ent_dim = 3,
@@ -83,6 +85,7 @@ class BAGRNN_Model:
         self.length = length = tf.placeholder(tf.int32, [None])
         # sentence mask
         self.mask = mask = tf.placeholder(tf.float32, [None, L])
+        self.enc_mask = enc_mask = tf.placeholder(tf.float32, [None, enc_dim])
         # adversarial eps
         if self.adv_eps is not None:
             self.adv_eps = tf.placeholder(tf.float32, shape=())
@@ -148,7 +151,9 @@ class BAGRNN_Model:
         pcnn_feat_size = self.enc_dim
 
         def discriminative_net(word_inputs, ent_inputs, name = 'discriminative-net', reuse = False,
-                                 only_pos_rel_loss = False):
+                                 only_pos_rel_loss = False,
+                               loss=None,
+                               V=None):
             with tf.variable_scope(name, reuse=reuse):
                 if only_pos_rel_loss:
                     pos_rel_mask = ph_Y
@@ -158,33 +163,41 @@ class BAGRNN_Model:
                     #pos_rel_mask = ph_Y + na_flag
 
                 inputs = tf.concat([word_inputs, ent_inputs], axis = 2)  # [batch, L, dim]
+                if V is None:
+                    if not use_pcnn:  # use RNN
+                        outputs, states = mc.mybidrnn(inputs, length, enc_dim,
+                                                      cell_name = cell_type,
+                                                      scope = 'bidirect-rnn')
+                        # sentence information
+                        V = tf.concat(states, axis=1) # [batch, rel_dim]
+                        V_dim = enc_dim * 2
+                    else:
+                        # use pcnn
+                        feat_size = pcnn_feat_size
+                        window_size = 3
+                        inputs = tf.expand_dims(inputs, axis=1)  # [batch, 1, L, dim]
+                        conv_out = tf.squeeze(tf.nn.relu(
+                            tf.layers.conv2d(inputs, feat_size, [1, window_size], 1, padding='same',
+                                             kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
+                        ))  # [batch, L, feat_size]
+                        conv_out = tf.expand_dims(tf.transpose(conv_out, [0, 2, 1]), axis=-1)  # [batch, feat, L, 1]
+                        pcnn_pool = tf.reduce_max(conv_out * pcnn_pos_mask, axis=2)  # [batch, feat, 3]
+                        V = tf.reshape(pcnn_pool, [-1, feat_size * 3])
+                        V_dim = feat_size * 3
 
-                if not use_pcnn:  # use RNN
-                    outputs, states = mc.mybidrnn(inputs, length, enc_dim,
-                                                  cell_name = cell_type,
-                                                  scope = 'bidirect-rnn')
-                    # sentence information
-                    V = tf.concat(states, axis=1) # [batch, rel_dim]
-                    V_dim = enc_dim * 2
+                    if V_dim != rel_dim:
+                        V = mc.linear(V, rel_dim, scope='embed_proj')
+                    if dropout:
+                        V = tf.layers.dropout(V, rate=dropout,
+                                              training=is_training)
                 else:
-                    # use pcnn
-                    feat_size = pcnn_feat_size
-                    window_size = 3
-                    inputs = tf.expand_dims(inputs, axis=1)  # [batch, 1, L, dim]
-                    conv_out = tf.squeeze(tf.nn.relu(
-                        tf.layers.conv2d(inputs, feat_size, [1, window_size], 1, padding='same',
-                                         kernel_initializer=tf.contrib.layers.xavier_initializer_conv2d())
-                    ))  # [batch, L, feat_size]
-                    conv_out = tf.expand_dims(tf.transpose(conv_out, [0, 2, 1]), axis=-1)  # [batch, feat, L, 1]
-                    pcnn_pool = tf.reduce_max(conv_out * pcnn_pos_mask, axis=2)  # [batch, feat, 3]
-                    V = tf.reshape(pcnn_pool, [-1, feat_size * 3])
-                    V_dim = feat_size * 3
-
-                if V_dim != rel_dim:
-                    V = mc.linear(V, rel_dim, scope='embed_proj')
-                if dropout:
-                    V = tf.layers.dropout(V, rate=dropout,
-                                          training=is_training)
+                    print("orig V shape", V.shape)
+                    raw_perturb = tf.gradients(loss, V)[0]  # [batch, L, dim]
+                    print("raw perturb shape", raw_perturb.shape)
+                    perturb = self.sentence_eps * tf.stop_gradient(
+                        tf.nn.l2_normalize(raw_perturb, dim=1))
+                    print("perturb shape", perturb.shape)
+                    V = V + perturb
 
                 #################################
                 # Multi Label Multi Instance Learning
@@ -248,18 +261,21 @@ class BAGRNN_Model:
                                 loss = tf.losses.sigmoid_cross_entropy(ph_Y, logits, weights=pos_rel_mask)
                             else:
                                 loss = tf.losses.sigmoid_cross_entropy(ph_Y, logits)
-            return probs, loss
+            return probs, loss, V
 
-        self.probs, self.raw_loss = discriminative_net(orig_inputs, ent_inputs, reuse=False,
+        self.probs, self.raw_loss, self.V = discriminative_net(orig_inputs, ent_inputs, reuse=False,
                                                        only_pos_rel_loss=(self.adv_eps is not None) and (self.only_perturb_pos_rel) and (not use_softmax_loss))
+
         if self.adv_eps is None:
             self.loss = self.raw_loss
         else:  # adversarial training
             raw_perturb = tf.gradients(self.raw_loss, orig_inputs)[0]  # [batch, L, dim]
+            print(raw_perturb.shape)
             if self.adv_type == 'sent':
                 # normalize per sentence
                 self.perturb = perturb = self.adv_eps * tf.stop_gradient(
                     tf.nn.l2_normalize(raw_perturb * tf.expand_dims(mask, axis=-1), dim=[1, 2]))
+                print(perturb.shape)
             elif self.adv_type == 'batch':
                 # normalize the whole batch
                 self.perturb = perturb = self.adv_eps * tf.stop_gradient(
@@ -279,6 +295,7 @@ class BAGRNN_Model:
                     # normalize per sentence
                     self.perturb_pos = perturb_pos = self.pos_adv_eps * tf.stop_gradient(
                         tf.nn.l2_normalize(raw_perturb_pos * tf.expand_dims(mask, axis=-1), dim=[1, 2]))
+
                 elif self.adv_type == 'batch':
                     # normalize the whole batch
                     self.perturb_pos = perturb_pos = self.pos_adv_eps * tf.stop_gradient(
@@ -291,6 +308,6 @@ class BAGRNN_Model:
                         perturb_list.append(self.pos_adv_eps * tf.nn.l2_normalize(curr_pt, dim=[0,1,2]))
                     self.perturb_pos = perturb_pos = tf.concat(perturb_list, axis=0)  # [batch, L, dim]
                 self.perturb_pos_inputs = perturb_pos_inputs = ent_inputs + perturb_pos
-            self.perturb_probs, self.loss = discriminative_net(perturb_inputs, ent_inputs=perturb_pos_inputs, reuse=True)  # optimize the loss with perturbed loss
+            self.perturb_probs, self.loss, _ = discriminative_net(perturb_inputs, ent_inputs=perturb_pos_inputs, reuse=True, loss=self.raw_loss, V=self.V)  # optimize the loss with perturbed loss
 
 
