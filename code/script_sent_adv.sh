@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-file="nyt_pcnn_sent_adv_1"
+file="nyt_pcnn_sent_adv_4"
 if [ $# -gt 0 ]; then
     file=$1
 fi
@@ -38,5 +38,5 @@ CUDA_VISIBLE_DEVICES=0 python3 bag_runner.py --name $file --epoch 50 \
     --adv_eps 0.01 \
     --dataset nyt --cat_n 58 \
     --max_eval_rel 3000 \
-    --sentence_eps 0.01
+    --sentence_eps 0.075
 #    --warmstart ./model/nyt_pcnn_pos_adv/nyt_pcnn_pos_adv_ep40

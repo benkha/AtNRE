@@ -1,6 +1,6 @@
 #!/bin/bash
 
-file="nyt_bagrnn_adv"
+file="nyt_bagrnn_adv_1"
 if [ $# -gt 0 ]; then
     file=$1
 fi
@@ -18,7 +18,7 @@ fi
 # rm -r ./log/$file/test/*
 #rm -r ./stats/$file/*
 
-CUDA_VISIBLE_DEVICES=0 python3 bag_runner.py --name $file --epoch 10 \
+CUDA_VISIBLE_DEVICES=0 python3 bag_runner.py --name $file --epoch 40 \
     --lrate 0.001 \
     --model_dir ./model/$file --log ./log/$file --eval_dir ./stats/$file \
     --bag_num 50 \
@@ -34,6 +34,6 @@ CUDA_VISIBLE_DEVICES=0 python3 bag_runner.py --name $file --epoch 10 \
     --clip_grad 10 \
     --gpu_usage 0.9 \
     --dropout 0.5 \
-    --adv_eps 0.2 \
+    --adv_eps 0.02 \
     --dataset nyt --cat_n 58 \
     --max_eval_rel 3000
